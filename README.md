@@ -17,10 +17,13 @@ command:
 
 ```
 SELECT COUNT(1) FROM songs;
+SELECT COUNT(1) FROM songs WHERE playcount = 0;
 ```
 
 ```
 SELECT title,artist,url,playcount,lastplayed,skipcount FROM songs WHERE artist = 'Big Black';
+SELECT title,artist,album,url,lastplayed,skipcount FROM songs WHERE playcount = 0;
+SELECT title,artist,album,url,lastplayed,skipcount FROM songs WHERE playcount = 0 AND lastplayed <> -1;
 ```
 
 ```

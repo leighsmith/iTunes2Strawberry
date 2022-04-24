@@ -64,8 +64,7 @@ def imputeTrackFields(track):
 def updatePlayDetails(strawberryDatabaseCursor, cleanedURL, newPlayCount, newLastPlayed, newSkipCount):
     # Set the track with the unassigned play count, last played date, and skip counts to the iTunes values:
     updateCounts = f"UPDATE songs SET playcount = {newPlayCount}, skipcount = {newSkipCount}, lastplayed = {newLastPlayed} WHERE url = '{cleanedURL}' AND playcount = 0"
-    #appLogger.debug(updateCounts)
-    # return False
+    appLogger.debug(updateCounts)
     strawberryDatabaseCursor.execute(updateCounts)
     # Determine if the field was updated.
     strawberryDatabaseCursor.execute('SELECT changes() FROM songs')
@@ -87,7 +86,7 @@ def processUnplayedStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor):
     appLogger.debug(allUnplayedSongs)
     updateCount = 0
     updateDatabaseCursor.execute(allUnplayedSongs)
-    for index, row in enumerate(updateDatabaseCursor.fetchall()):
+    for row in updateDatabaseCursor.fetchall():
         cleanedURL = convertURL(row[0])
         # retrieveSong = f"SELECT url, artist, title, playcount, skipcount, lastplayed FROM songs WHERE url='{row[0]}'"
         retrieveSong = f"SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs WHERE url='{cleanedURL}'"

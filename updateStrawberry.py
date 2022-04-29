@@ -43,24 +43,6 @@ def convertURL(iTunesURL):
     # Finally escape quote characters in URL for SQL use.
     return encodedURL.replace("'", "''")
 
-def imputeTrackFields(track):
-    """
-    Clean up the track parameters if there are missing fields.
-    """
-    if 'Skip Count' not in track:
-        track['Skip Count'] = 0
-    if 'Skip Date' not in track:
-        track['Skip Date'] = 0 # TODO Not right.
-    if 'Artist' not in track:
-        track['Artist'] = 'Unknown'
-    if 'Name' not in track:
-        track['Name'] = 'Untitled'
-    if 'Play Count' not in track:
-        track['Play Count'] = 0
-    if 'Play Date UTC' not in track:
-        track['Play Date UTC'] = datetime.utcnow()
-    return track
-
 def updatePlayDetails(strawberryDatabaseCursor, cleanedURL, newPlayCount, newLastPlayed, newSkipCount):
     # Set the track with the unassigned play count, last played date, and skip counts to the iTunes values:
     updateCounts = f"UPDATE songs SET playcount = {newPlayCount}, skipcount = {newSkipCount}, lastplayed = {newLastPlayed} WHERE url = '{cleanedURL}' AND playcount = 0"
@@ -88,7 +70,6 @@ def processUnplayedStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor):
     updateDatabaseCursor.execute(allUnplayedSongs)
     for row in updateDatabaseCursor.fetchall():
         cleanedURL = convertURL(row[0])
-        # retrieveSong = f"SELECT url, artist, title, playcount, skipcount, lastplayed FROM songs WHERE url='{row[0]}'"
         retrieveSong = f"SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs WHERE url='{cleanedURL}'"
         appLogger.debug(retrieveSong)
         fromDatabaseCursor.execute(retrieveSong)
@@ -108,7 +89,7 @@ def processUnplayedStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description = 'Alters a Strawberry music player database, setting the play and skip counts, and last played date and time from the iTunes Library XML file.')
+    parser = argparse.ArgumentParser(description = 'Alters a Strawberry music player database, setting the play and skip counts, and last played date and time from another Strawberry database.')
     parser.add_argument('-v', '--verbose', action = 'count', help = 'Verbose output. Specify twice for debugging.', default = 0)
     parser.add_argument('-u', '--update-db', action = 'store', help = 'Path to the Strawberry database file to update.', type = str, default = 'strawberry.db')
     parser.add_argument('-f', '--from-db', action = 'store', help = 'Path to the Strawberry database to update from.', default = '')
@@ -125,9 +106,6 @@ if __name__ == '__main__':
     elif args.verbose > 0:
         appLogger.setLevel(logging.INFO)
 
-    # replaceOriginal = 'iTunes%20Music/(?!Music/)'
-    # replaceWith = 'iTunes%20Music/Music/'
-    
     updateSQLClient = sqlite3.connect(args.update_db)
     updateCursor = updateSQLClient.cursor()
 

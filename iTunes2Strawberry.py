@@ -84,7 +84,8 @@ def updatePlayDetails(strawberryDatabaseCursor, track, cleanedURL, alternateURL)
         appLogger.info("Updated Track: {Name}, {Artist}, {Play Count}, {Play Date UTC}, {Skip Count}, {Skip Date}, {Location}".format(**track))
         return True
     
-def processUnplayedStrawberyFiles(iTunesTree, strawberryDatabaseCursor, replaceURL, replaceWith):
+def processUnplayedStrawberyFiles(iTunesTree, strawberryDatabaseCursor, replaceURL,
+                                  replaceWith, findClause = ''):
     """
     Only update files in the strawberry database which have play counts of zero.
     Returns the number of updates performed.
@@ -93,6 +94,8 @@ def processUnplayedStrawberyFiles(iTunesTree, strawberryDatabaseCursor, replaceU
     appLogger.info("Searching for unplayed tracks in database in iTunes library file v{Major Version}.{Minor Version} created {Date}".format(**iTunesTree))
     URLreplace = re.compile(replaceURL)
     allUnplayedSongs = "SELECT url, artist, title, playcount, skipcount, lastplayed FROM songs WHERE playcount = 0"
+    if findClause is not None and len(findClause) > 0:
+        allUnplayedSongs += ' AND ' + findClause
     appLogger.debug(allUnplayedSongs)
     updateCount = 0
     strawberryDatabaseCursor.execute(allUnplayedSongs)
@@ -131,11 +134,11 @@ def processUnplayedStrawberyFiles(iTunesTree, strawberryDatabaseCursor, replaceU
     return updateCount
 
 def processAlliTunesFiles(iTunesTree, strawberryDatabaseCursor,
-                          find, updateExisting, replaceURL, replaceWith):
+                          findClause, updateExisting, replaceURL, replaceWith):
     """
     Iterate through all tracks in the iTunes library tree structure.
 
-    :param find: A dictionary of keys and regexps to match on.
+    :param findClause: A dictionary of keys and regexps to match on.
     :param updateExisting:
     :param replaceURL: 
     :param replaceWith:
@@ -226,10 +229,12 @@ if __name__ == '__main__':
     
     with open(args.itunes, 'rb') as libraryFile:
         root = plistlib.load(libraryFile, fmt = plistlib.FMT_XML)
+        findClause = f"album = '{args.find}'" if len(args.find) > 0 else ''
         if args.update_unplayed:
-            updateCount = processUnplayedStrawberyFiles(root, cursor, args.replace_url, args.replace_with)
+            updateCount = processUnplayedStrawberyFiles(root, cursor, args.replace_url, args.replace_with,
+                                                        findClause = findClause)
         else:
-            updateCount = processAlliTunesFiles(root, cursor, {'Album': args.find}, args.update_existing, args.replace_url, args.replace_with)
+            updateCount = processAlliTunesFiles(root, cursor, findClause, args.update_existing, args.replace_url, args.replace_with)
 
     # Save (commit) the changes
     appLogger.info(f"Updated {updateCount} tracks")

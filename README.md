@@ -2,7 +2,7 @@ Strawberry Music Player Database Utilities
 ==========================================
 
 This repository contains Python utilities to modify the open source
-[Strawberry Music Player](https://www.strawberrymusicplayer.org/) database.
+[Strawberry Music Player](https://www.strawberrymusicplayer.org/) [SQLite3](https://sqlite.org/index.html) database.
 Typically this consists of bulk updates to the track play counts, skip counts, and last played dates.
 These were produced in my process of transitioning from iTunes to Strawberry, and wanting
 to retain my play analytics for a sizeable (> 20K tracks) music library.
@@ -34,8 +34,8 @@ Strawberry's database resides at:
 on MacOS X.
 
 The utilities will modify the Strawberry database `strawberry.db`.
-**They can potentially damage your data if you make a mistake!**
-**Use at your own risk!!**
+
+**They can potentially damage your data if you make a mistake! Use at your own risk!!**
 
 Obviously do not do modifications directly on `strawberry.db` used by the application,
 make a copy to another directory, modify that, backup the working application version,
@@ -45,7 +45,7 @@ the modifications did what you want.
 # Manual Database Investigation
 
 Strawberry's database is a SQLite3 database. On MacOS, that database can be accessed with
-the sqlite3 command, but as noted above, duplicating the file to another directory, and safely run:
+the `sqlite3` command, but as noted above, duplicating the file to another directory, and safely run:
 
 ```
 cp ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db .

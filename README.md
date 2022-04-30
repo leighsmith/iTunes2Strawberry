@@ -42,6 +42,36 @@ make a copy to another directory, modify that, backup the working application ve
 before overwriting it with your modified version. Launch Strawberry and carefully check
 the modifications did what you want.
 
+# Example Usage
+
+First run and configure Strawberry, adding the directory that contains the audio files
+which were within iTunes, and update the collection to ensure they are read and appear
+within Strawberry. You can move/rename the directory, but you will then need to use the URL
+replacement commands as demonstrated below. You will see all the playcounts and dates are
+reset, of course.
+
+Here is a typical set of commands to execute to safely import all play analytics from
+iTunes on a MacOS machine, updating only those tracks in Strawberry which have no
+plays. The Strawberry database is copied locally, a local backup is made, the script is
+run, then the updated database replaces the version in use:
+
+```
+cp ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db strawberry.db
+cp strawberry.db strawberry_backup.db
+python3 iTunes2Strawberry.py -s strawberry.db -i Library.xml -p
+cp strawberry.db ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db
+```
+
+Obviously ensure you have quit Strawberry before running these commands!
+
+An example which limits the updates to a single album in the collection, and dumps out the
+maximum diagnostics, while managing the move of the audio files from the iTunes directory
+to another location (`Media` in this case) and change of artist formatting for Strawberry is:
+
+```
+python3 iTunes2Strawberry.py -v -v -s strawberry.db -i Library.xml -p -r 'iTunes/iTunes%20Music/Brian%20Eno%20_%20David%20Byrne' -w 'Media/Brian%20Eno%20&%20David%20Byrne' -f 'My Life in the Bush of Ghosts'
+```
+
 # Manual Database Investigation
 
 Strawberry's database is a SQLite3 database. On MacOS, that database can be accessed with

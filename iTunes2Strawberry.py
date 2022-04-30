@@ -218,9 +218,6 @@ if __name__ == '__main__':
     elif args.verbose > 0:
         appLogger.setLevel(logging.INFO)
 
-    # replaceOriginal = 'iTunes%20Music/(?!Music/)'
-    # replaceWith = 'iTunes%20Music/Music/'
-    
     sqlClient = sqlite3.connect(args.strawberry)
     cursor = sqlClient.cursor()
 

@@ -10,6 +10,7 @@ to retain my play analytics for a sizeable (> 20K tracks) music library.
 These utilities perform the following functions:
 
 - iTunes2Strawberry.py: Converts play analytics of an exported iTunes library to a Strawberry database.
+- iTunesPlayLists2Strawberry.py: Adds non-smart playlists from an iTunes library file as an equivalent Strawberry favorite playlist.
 - updateStrawberry.py: Updates play analytics of a Strawberry database from another Strawberry database.
 - consolidateTracks.py: Merge the play analytics between two nominated tracks in a Strawberry database.
 
@@ -82,7 +83,7 @@ cp ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db .
 /usr/bin/sqlite3 strawberry.db
 ```
 
-The schema can be shown with:
+The songs schema can be shown with:
 
 ```
 .schema songs

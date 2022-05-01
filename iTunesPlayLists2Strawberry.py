@@ -82,10 +82,17 @@ def writePlayListItem(dbCursor, playlistName, playlistId, url):
         appLogger.warning(f"Unable to find {url} in strawberry database to insert into {playlistName}")
     return False
 
-def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURL, replaceWith, onlyPlayList = None):
+def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPlayList = None):
+    """
+    Create strawberry playlists from either all iTunes playlists or a single playlist.
+    :param iTunesTree: Reads from the iTunes dictionary tree.
+    :param strawberryDatabaseCursor: writes to the strawberry database indexed by this cursor.
+    :param replaceURLList: A list of tuples, each containing a regular expression and it's replacement to apply to the URL.
+    :param onlyPlayList: If not None, only the named playlist will be imported.
+    """
     appLogger.debug(iTunesTree.keys())
     appLogger.info("Searching for playlist {onlyPlayList} tracks in database in iTunes library file v{Major Version}.{Minor Version} created {Date}".format(onlyPlayList = onlyPlayList, **iTunesTree))
-    URLreplace = re.compile(replaceURL)
+    
     updateCount = 0
     for playlistCount, playlist in enumerate(iTunesTree['Playlists']):
         appLogger.debug(f"Playlist {playlistCount}: {playlist['Name']}, {playlist['Description']}")
@@ -106,7 +113,11 @@ def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURL, replaceWit
                         # Retrieve the URL, apply the cleaning and replacement to search for
                         # the equivalent song in strawberry database.
                         cleanedURL = convertURL(trackToAdd['Location'])
-                        alternateURL = URLreplace.sub(replaceWith, cleanedURL, count = 1)
+                        alternateURL = cleanedURL
+                        # Apply all substitutions to the same cleaned URL
+                        for URLreplace, replaceWith in replaceURLList:
+                            alternateURL = re.sub(URLreplace, replaceWith, alternateURL, count = 1)
+                            # appLogger.debug(f"{URLreplace} replaced by {replaceWith} producing {alternateURL}")
                         appLogger.info(f"Searching for track id: {trackId} at {alternateURL} in strawberry")
                         if writePlayListItem(strawberryDatabaseCursor, playlist['Name'], strawberryPlayListId, alternateURL):
                             updateCount += 1
@@ -125,8 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--strawberry', action = 'store', help = 'Path to the Strawberry database file.', type = str, default = 'strawberry.db')
     parser.add_argument('-i', '--itunes', action = 'store', help = 'Path to the iTunes exported Library.xml file.', type = str, default = 'Library.xml')
     parser.add_argument('-p', '--import-playlist', action = 'store', help = 'Only import the named playlist', default = None)
-    parser.add_argument('-r', '--replace-url', action = 'store', help = 'The URL regexp to replace', default = '')
-    parser.add_argument('-w', '--replace-with', action = 'store', help = 'The URL fragment to replace with', default = '')
+    parser.add_argument('-r', '--replace-url', action = 'append', nargs=2, help = 'The URL regexp to replace, and the URL fragment to replace with')
     
     args = parser.parse_args()
 
@@ -144,10 +154,10 @@ if __name__ == '__main__':
 
     with open(args.itunes, 'rb') as libraryFile:
         root = plistlib.load(libraryFile, fmt = plistlib.FMT_XML)
-        updateCount = importPlaylists(root, cursor, args.replace_url, args.replace_with, onlyPlayList = args.import_playlist)
+        updateCount = importPlaylists(root, cursor, args.replace_url, onlyPlayList = args.import_playlist)
 
     # Save (commit) the changes
-    appLogger.info(f"Updated {updateCount} tracks")
+    appLogger.info(f"Added {updateCount} tracks")
     if updateCount > 0:
         # Save (commit) the changes
         sqlClient.commit()

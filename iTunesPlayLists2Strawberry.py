@@ -67,11 +67,14 @@ def writePlayListItem(dbCursor, playlistName, playlistId, url):
     """
     findURL = f"SELECT rowid FROM songs WHERE url='{SQLEncodeURL(url)}'"
     appLogger.debug(findURL)
+    # These were determined by inspection of the database.
+    item_type = 2  # These are hardwired to signal to Strawberry to refer back to the collection id when updating.
+    source_type = 2 # Hardwired.
     dbCursor.execute(findURL)
     row = dbCursor.fetchone()
     if row is not None:
         collection_id = row[0] # songs rowid, i.e. the collection_id
-        writePlaylistItem = f"INSERT INTO playlist_items (playlist, collection_id) VALUES ({playlistId}, {collection_id})"
+        writePlaylistItem = f"INSERT INTO playlist_items (playlist, collection_id, type, source) VALUES ({playlistId}, {collection_id}, {item_type}, {source_type})"
         appLogger.debug(writePlaylistItem)
         dbCursor.execute(writePlaylistItem)
         # Check the insertion worked 

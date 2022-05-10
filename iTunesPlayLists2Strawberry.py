@@ -136,8 +136,8 @@ def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPl
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = 'Alters a Strawberry music player database, adding playlists from the iTunes Library XML file.')
     parser.add_argument('-v', '--verbose', action = 'count', help = 'Verbose output. Specify twice for debugging.', default = 0)
-    parser.add_argument('-s', '--strawberry', action = 'store', help = 'Path to the Strawberry database file.', type = str, default = 'strawberry.db')
-    parser.add_argument('-i', '--itunes', action = 'store', help = 'Path to the iTunes exported Library.xml file.', type = str, default = 'Library.xml')
+    parser.add_argument('-s', '--strawberry', action = 'store', help = 'Path to the Strawberry database file. Defaults to %(default)s.', type = str, default = 'strawberry.db')
+    parser.add_argument('-i', '--itunes', action = 'store', help = 'Path to the iTunes exported Library.xml file. Defaults to %(default)s.', type = str, default = 'Library.xml')
     parser.add_argument('-p', '--import-playlist', action = 'store', help = 'Only import the named playlist', default = None)
     parser.add_argument('-r', '--replace-url', action = 'append', nargs=2, help = 'The URL regexp to replace, and the URL fragment to replace with')
     

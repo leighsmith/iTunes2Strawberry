@@ -86,22 +86,26 @@ def writePlayListItem(dbCursor, playlistName, playlistId, url):
         appLogger.warning(f"Unable to find {url} in strawberry database to insert into {playlistName}")
     return False
 
-def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPlayList = None, includeSmartPlaylists = False):
+def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPlaylist = None, includeSmartPlaylists = False):
     """
     Create strawberry playlists from either all iTunes playlists or a single playlist.
     :param iTunesTree: Reads from the iTunes dictionary tree.
     :param strawberryDatabaseCursor: writes to the strawberry database indexed by this cursor.
     :param replaceURLList: A list of tuples, each containing a regular expression and it's replacement to apply to the URL.
-    :param onlyPlayList: If not None, only the named playlist will be imported.
+    :param onlyPlaylist: If not None, only the named playlist will be imported.
+    :param includeSmartPlaylists: if True, convert iTunes smart playlists into Strawberry static playlists.
     """
     appLogger.debug(iTunesTree.keys())
-    appLogger.info("Searching for playlist {onlyPlayList} tracks in database in iTunes library file v{Major Version}.{Minor Version} created {Date}".format(onlyPlayList = onlyPlayList, **iTunesTree))
+    appLogger.info("Searching for playlist {onlyPlaylist} tracks in database in iTunes library file v{Major Version}.{Minor Version} created {Date}".format(onlyPlaylist = onlyPlaylist, **iTunesTree))
     
     updateCount = 0
+    # iTunes include some playlists which hold the entire collection, so we exclude
+    # creating those, unless they are explicitly named as an onlyPlaylist.
+    excludePlaylists = ['Library', 'Music', 'Downloaded']
     for playlistCount, playlist in enumerate(iTunesTree['Playlists']):
         smartPlaylist = 'Smart Criteria' in playlist
         appLogger.debug(f"Playlist {playlistCount}: {playlist['Name']}, {playlist['Description']}, Smart playlist {smartPlaylist}")
-        if onlyPlayList is None or onlyPlayList == playlist['Name']:
+        if (playlist['Name'] not in excludePlaylists and onlyPlaylist is None) or playlist['Name'] == onlyPlaylist:
             if 'Playlist Items' not in playlist:
                 appLogger.warning(f"No items in {playlist['Name']}, not creating.")
             elif smartPlaylist and not includeSmartPlaylists:
@@ -162,7 +166,7 @@ if __name__ == '__main__':
     with open(args.itunes, 'rb') as libraryFile:
         root = plistlib.load(libraryFile, fmt = plistlib.FMT_XML)
         updateCount = importPlaylists(root, cursor, args.replace_url,
-                                      onlyPlayList = args.import_playlist,
+                                      onlyPlaylist = args.import_playlist,
                                       includeSmartPlaylists = args.convert_smart_playlists)
 
     # Save (commit) the changes

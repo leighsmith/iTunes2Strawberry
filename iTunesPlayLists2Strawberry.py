@@ -36,24 +36,25 @@ def convertURL(iTunesURL):
                              parsedURL.fragment))
     return encodedURL
 
-def SQLEncodeURL(url):
+def SQLEncodeString(queryString):
     """
-    Escape quote characters in URL for SQL use.
+    Escape quote characters in string for SQL use.
     """
-    return url.replace("'", "''")
+    return queryString.replace("'", "''")
 
 def createPlaylist(dbCursor, playlistName):
     """
     Create the playlist as a "favorite" of the given name in the strawberry database.
     Returns the row id of the newly created playlist, or -1 if there is an error creating it.
     """
+    encodedPlaylistName = SQLEncodeString(playlistName)
     # Verify if a new playlist is created. Should we be adding to an existing one?
-    playlistExistsAlready = f"SELECT COUNT(1) FROM playlists WHERE name = '{playlistName}'"
+    playlistExistsAlready = f"SELECT COUNT(1) FROM playlists WHERE name = '{encodedPlaylistName}'"
     appLogger.debug(playlistExistsAlready)
     dbCursor.execute(playlistExistsAlready)
     row = dbCursor.fetchone()
     if row[0] == 0:
-        addPlaylist = f"INSERT INTO playlists (name, ui_order, is_favorite) VALUES ('{playlistName}', -1, 1)"
+        addPlaylist = f"INSERT INTO playlists (name, ui_order, is_favorite) VALUES ('{encodedPlaylistName}', -1, 1)"
         appLogger.debug(addPlaylist)
         dbCursor.execute(addPlaylist)
         return dbCursor.lastrowid # The playlists rowid just created
@@ -65,7 +66,7 @@ def writePlayListItem(dbCursor, playlistName, playlistId, url):
     """
     Write each of the 'rowid's as 'collection_ids' for tracks in 'songs' that match the cleaned URLs to 'url' to playlist_items
     """
-    findURL = f"SELECT rowid FROM songs WHERE url='{SQLEncodeURL(url)}'"
+    findURL = f"SELECT rowid FROM songs WHERE url='{SQLEncodeString(url)}'"
     appLogger.debug(findURL)
     # These were determined by inspection of the database.
     item_type = 2  # These are hardwired to signal to Strawberry to refer back to the collection id when updating.
@@ -85,7 +86,7 @@ def writePlayListItem(dbCursor, playlistName, playlistId, url):
         appLogger.warning(f"Unable to find {url} in strawberry database to insert into {playlistName}")
     return False
 
-def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPlayList = None):
+def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPlayList = None, includeSmartPlaylists = False):
     """
     Create strawberry playlists from either all iTunes playlists or a single playlist.
     :param iTunesTree: Reads from the iTunes dictionary tree.
@@ -98,9 +99,14 @@ def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPl
     
     updateCount = 0
     for playlistCount, playlist in enumerate(iTunesTree['Playlists']):
-        appLogger.debug(f"Playlist {playlistCount}: {playlist['Name']}, {playlist['Description']}")
+        smartPlaylist = 'Smart Criteria' in playlist
+        appLogger.debug(f"Playlist {playlistCount}: {playlist['Name']}, {playlist['Description']}, Smart playlist {smartPlaylist}")
         if onlyPlayList is None or onlyPlayList == playlist['Name']:
-            if 'Playlist Items' in playlist:
+            if 'Playlist Items' not in playlist:
+                appLogger.warning(f"No items in {playlist['Name']}, not creating.")
+            elif smartPlaylist and not includeSmartPlaylists:
+                appLogger.warning(f"Smart playlist {playlist['Name']} excluded, needs manual recreation in Strawberry.")
+            else:
                 strawberryPlayListId = createPlaylist(strawberryDatabaseCursor, playlist['Name'])
                 if strawberryPlayListId < 0:
                     continue
@@ -128,9 +134,6 @@ def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPl
                             appLogger.error(f"Unable to write {alternateURL} to playlist {playlist['Name']}")
                     else:
                         appLogger.warning(f"Can't find track id: {trackId} in iTunes library?")
-            else:
-                appLogger.warning(f"No items in {playlist['Name']}, probably a smart playlist?")
-                
     return updateCount
 
 if __name__ == '__main__':
@@ -138,8 +141,9 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action = 'count', help = 'Verbose output. Specify twice for debugging.', default = 0)
     parser.add_argument('-s', '--strawberry', action = 'store', help = 'Path to the Strawberry database file. Defaults to %(default)s.', type = str, default = 'strawberry.db')
     parser.add_argument('-i', '--itunes', action = 'store', help = 'Path to the iTunes exported Library.xml file. Defaults to %(default)s.', type = str, default = 'Library.xml')
-    parser.add_argument('-p', '--import-playlist', action = 'store', help = 'Only import the named playlist', default = None)
-    parser.add_argument('-r', '--replace-url', action = 'append', nargs=2, help = 'The URL regexp to replace, and the URL fragment to replace with')
+    parser.add_argument('--convert-smart-playlists', action = 'store_true', help = 'Convert iTunes smart playlists to Strawberry static playlists.')
+    parser.add_argument('-p', '--import-playlist', action = 'store', help = 'Only import the named playlist.', default = None)
+    parser.add_argument('-r', '--replace-url', action = 'append', nargs=2, help = 'The URL regexp to replace, and the URL fragment to replace with.')
     
     args = parser.parse_args()
 
@@ -157,7 +161,9 @@ if __name__ == '__main__':
 
     with open(args.itunes, 'rb') as libraryFile:
         root = plistlib.load(libraryFile, fmt = plistlib.FMT_XML)
-        updateCount = importPlaylists(root, cursor, args.replace_url, onlyPlayList = args.import_playlist)
+        updateCount = importPlaylists(root, cursor, args.replace_url,
+                                      onlyPlayList = args.import_playlist,
+                                      includeSmartPlaylists = args.convert_smart_playlists)
 
     # Save (commit) the changes
     appLogger.info(f"Added {updateCount} tracks")

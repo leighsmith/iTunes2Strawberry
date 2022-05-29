@@ -109,12 +109,12 @@ def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPl
             if 'Playlist Items' not in playlist:
                 appLogger.warning(f"No items in {playlist['Name']}, not creating.")
             elif smartPlaylist and not includeSmartPlaylists:
-                appLogger.warning(f"Smart playlist {playlist['Name']} excluded, needs manual recreation in Strawberry.")
+                appLogger.warning(f"Smart playlist '{playlist['Name']}' excluded, needs manual recreation in Strawberry.")
             else:
                 strawberryPlayListId = createPlaylist(strawberryDatabaseCursor, playlist['Name'])
                 if strawberryPlayListId < 0:
                     continue
-                for playlistItem in playlist['Playlist Items']:
+                for itemPosition, playlistItem in enumerate(playlist['Playlist Items']):
                     trackId = str(playlistItem['Track ID'])
                     if trackId in iTunesTree['Tracks']:
                         trackToAdd = iTunesTree['Tracks'][trackId]
@@ -135,7 +135,7 @@ def importPlaylists(iTunesTree, strawberryDatabaseCursor, replaceURLList, onlyPl
                         if writePlayListItem(strawberryDatabaseCursor, playlist['Name'], strawberryPlayListId, alternateURL):
                             updateCount += 1
                         else:
-                            appLogger.error(f"Unable to write {alternateURL} to playlist {playlist['Name']}")
+                            appLogger.error(f"Unable to write {alternateURL} to playlist {playlist['Name']} at position {itemPosition}.")
                     else:
                         appLogger.warning(f"Can't find track id: {trackId} in iTunes library?")
     return updateCount

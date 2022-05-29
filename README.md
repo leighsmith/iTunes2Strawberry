@@ -97,6 +97,9 @@ SELECT COUNT(1) FROM songs WHERE playcount = 0;
 SELECT title,artist,url,playcount,lastplayed,skipcount FROM songs WHERE artist = 'Big Black';
 SELECT title,artist,album,url,lastplayed,skipcount FROM songs WHERE playcount = 0;
 SELECT title,artist,album,url,lastplayed,skipcount FROM songs WHERE playcount = 0 AND lastplayed <> -1;
+
+-- Dump out the playlist tracks
+SELECT playlists.name, playlists.ui_order, playlist_items.collection_id, songs.title, songs.artist, songs.url FROM playlists JOIN playlist_items ON (playlists.rowid = playlist_items.playlist) JOIN songs ON (songs.rowid = playlist_items.collection_id) ORDER BY playlists.ui_order;
 ```
 
 Updates to the database such as bulk change of the path of audio files would be, e.g:

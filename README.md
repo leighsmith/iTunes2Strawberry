@@ -13,6 +13,7 @@ These utilities perform the following functions:
 - iTunesPlayLists2Strawberry.py: Adds non-smart playlists from an iTunes library file as an equivalent Strawberry favorite playlist.
 - updateStrawberry.py: Updates play analytics of a Strawberry database from another Strawberry database.
 - consolidateTracks.py: Merge the play analytics between two nominated tracks in a Strawberry database.
+- listenbrainz2Strawberry.py: Updates play analytics from a Listenbrainz account to a Strawberry database.
 
 While these Python utilities should run correctly on Linux, MacOS and Windows platforms,
 only MacOS has been tested, and documented here.
@@ -51,6 +52,8 @@ within Strawberry. You can move/rename the directory, but you will then need to 
 replacement commands as demonstrated below. You will see all the playcounts and dates are
 reset, of course.
 
+## iTunes2Strawberry Example
+
 Here is a typical set of commands to execute to safely import all play analytics from
 iTunes on a MacOS machine, updating only those tracks in Strawberry which have no
 plays. The Strawberry database is copied locally, a local backup is made, the script is
@@ -72,6 +75,36 @@ to another location (`Media` in this case) and change of artist formatting for S
 ```
 python3 iTunes2Strawberry.py -v -v -s strawberry.db -i Library.xml -p -r 'iTunes/iTunes%20Music/Brian%20Eno%20_%20David%20Byrne' -w 'Media/Brian%20Eno%20&%20David%20Byrne' -f 'My Life in the Bush of Ghosts'
 ```
+
+## Listenbrainz2Strawberry Example
+
+In order to update the play analytics of a Strawberry database with additional, newer,
+plays of tracks on, for example, a mobile device, the `listenbrainz2Strawberry.py` script
+will read the play times and count the number of plays of tracks on a
+[Listenbrainz](https://www.listenbrainz.org) account that match the title and artist name
+in the Strawberry database and are newer than the last play in Strawberry. An example use
+case is to use a mobile app such as the open source [Finale For
+Last.fm](https://apps.apple.com/us/app/finale-for-last-fm/id1518365620) to scrobble plays
+from the mobile device, and until Finale for Last.fm is updated to directly scrobble to
+Listenbrainz, use the Listenbrainz site to import plays from Last.fm, then run:
+
+```
+python3 listenbrainz2Strawberry.py -s strawberry.db listenbrainzuser
+```
+
+where `listenbrainzuser` is the username of an account of Listenbrainz. No passwords are
+required. Any tracks which are not able to be found in the Strawberry database will be
+reported. However, there are some variations in how the metadata is stored which can
+differ, such as the order of multiple artists in an artist name field, and the omission of
+punctuation characters in the title of the track. Listenbrainz places an upper limit of
+100 tracks to retrieve in a single request. The default to retrieve is the most recent 100
+tracks, but if earlier tracks need to be searched use the `--before` parameter, e.g:
+
+```
+python3 listenbrainz2Strawberry.py -vv -s strawberry.db --before 'Mon Aug 29 22:40:20 2022' listenbrainzuser
+```
+
+Note the use of `-vv` in this example will turn on full debugging.
 
 # Manual Database Investigation
 

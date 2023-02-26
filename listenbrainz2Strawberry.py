@@ -24,7 +24,7 @@ def get_track_from_strawberry(cursor, listen):
     # Search on the track name and the artist name. We need to do it in a case insensitive
     # manner, since the track and artists strings can often differ in capitalisation
     # compared between Strawberry and Listenbrainz.
-    find_track = f"SELECT url, playcount, lastplayed FROM songs WHERE artist = '{sql_encode(listen.artist_name)}' AND title = '{sql_encode(listen.track_name)}' COLLATE NOCASE"
+    find_track = f"SELECT url, playcount, lastplayed FROM songs WHERE artist = '{sql_encode(listen.artist_name)}' COLLATE NOCASE AND title = '{sql_encode(listen.track_name)}' COLLATE NOCASE"
     appLogger.debug(find_track)
     cursor.execute(find_track)
     found_track = None

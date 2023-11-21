@@ -9,12 +9,13 @@ import argparse
 import sqlite3
 import pylistenbrainz
 import time
+from unidecode import unidecode
 
 def sql_encode(string):
     """
     Escape quote characters in string for SQL use.
     """
-    return string.replace("'", "''")
+    return unidecode(string.replace("'", "''"))
 
 def get_track_from_strawberry(cursor, listen):
     """

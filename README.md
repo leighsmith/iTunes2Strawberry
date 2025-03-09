@@ -31,9 +31,11 @@ python3 iTunes2Strawberry.py -h
 
 Strawberry's database resides at:
 
-`~/Library/Application Support/Strawberry/Strawberry/strawberry.db`
+`~/Library/Application Support/strawberry/strawberry/strawberry.db`
 
-on MacOS X.
+on MacOS X. Note in earlier versions of Strawberry the directory was
+`~/Library/Application Support/Strawberry/Strawberry/` which differs on case-sensitive
+APFS & HFS+ filesystems.
 
 The utilities will modify the Strawberry database `strawberry.db`.
 
@@ -60,10 +62,10 @@ plays. The Strawberry database is copied locally, a local backup is made, the sc
 run, then the updated database replaces the version in use:
 
 ```
-cp ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db strawberry.db
+cp ~/Library/Application\ Support/strawberry/strawberry/strawberry.db strawberry.db
 cp strawberry.db strawberry_backup.db
 python3 iTunes2Strawberry.py -s strawberry.db -i Library.xml -p
-cp strawberry.db ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db
+cp strawberry.db ~/Library/Application\ Support/strawberry/strawberry/strawberry.db
 ```
 
 Obviously ensure you have quit Strawberry before running these commands!
@@ -112,7 +114,7 @@ Strawberry's database is a SQLite3 database. On MacOS, that database can be acce
 the `sqlite3` command, but as noted above, duplicating the file to another directory, and safely run:
 
 ```
-cp ~/Library/Application\ Support/Strawberry/Strawberry/strawberry.db .
+cp ~/Library/Application\ Support/strawberry/strawberry/strawberry.db .
 /usr/bin/sqlite3 strawberry.db
 ```
 

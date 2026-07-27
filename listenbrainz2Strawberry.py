@@ -87,7 +87,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = 'Alters a Strawberry music player database, setting the play count, and last played date and time from a ListenBrainz account.')
     parser.add_argument('-v', '--verbose', action = 'count', help = 'Verbose output. Specify twice for debugging.', default = 0)
     parser.add_argument('-s', '--strawberry', action = 'store', help = 'Path to the Strawberry database file.', type = str, default = 'strawberry.db')
-    parser.add_argument('-b', '--before', action  = 'store', help = 'Retrieve listens before the given date & time', default = None)
+    parser.add_argument('-b', '--before', action  = 'store', help = 'Retrieve listens before the given date & time, formatted as YYYY-MM-DD HH:MM:SS (24 hour).', default = None)
     parser.add_argument('user', action = 'store', help = 'The ListenBrainz user', default = '')
     args = parser.parse_args()
 
@@ -104,7 +104,9 @@ if __name__ == '__main__':
     strawberry_db_cursor = sqlClient.cursor()
     listenbrainz_user = args.user
     # Determine the Unix epoch time from the human readable local timezone time.
-    max_ts = int(time.mktime(time.strptime(args.before))) if args.before is not None else None
+    # Expected: YYYY-MM-DD HH:MM:SS (24 hour)
+    expected_format = "%Y-%m-%d %H:%M:%S"
+    max_ts = int(time.mktime(time.strptime(args.before, expected_format))) if args.before is not None else None
     appLogger.debug(f"Maximum timestamp {max_ts}")
 
     client = pylistenbrainz.ListenBrainz()

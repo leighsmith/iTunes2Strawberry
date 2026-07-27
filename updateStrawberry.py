@@ -90,9 +90,9 @@ def processUnplayedStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = 'Alters a Strawberry music player database, setting the play and skip counts, and last played date and time from another Strawberry database.')
+    parser.add_argument('update_db', action = 'store', help = 'Path to the Strawberry database file to update.', type = str, default = 'strawberry.db')
     parser.add_argument('-v', '--verbose', action = 'count', help = 'Verbose output. Specify twice for debugging.', default = 0)
-    parser.add_argument('-u', '--update-db', action = 'store', help = 'Path to the Strawberry database file to update.', type = str, default = 'strawberry.db')
-    parser.add_argument('-f', '--from-db', action = 'store', help = 'Path to the Strawberry database to update from.', default = '')
+    parser.add_argument('-f', '--from-db', action = 'store', help = 'Path to the Strawberry database to update from.', default = None)
     parser.add_argument('-d', '--dump-existing', action = 'store_true', help = 'Display the existing tracks if they already have play counts')
     
     args = parser.parse_args()
@@ -109,18 +109,16 @@ if __name__ == '__main__':
     updateSQLClient = sqlite3.connect(args.update_db)
     updateCursor = updateSQLClient.cursor()
 
-    fromSQLClient = sqlite3.connect(args.from_db)
-    fromCursor = fromSQLClient.cursor()
-    
     if args.dump_existing:
         dumpAllPlayed(updateCursor)
     
-    updateCount = processUnplayedStrawberyFiles(updateCursor, fromCursor)
-    appLogger.info(f"Updated {updateCount} tracks")
-    if updateCount > 0:
-        # Save (commit) the changes
-        updateSQLClient.commit()
-
+    if args.from_db is not None:
+        fromSQLClient = sqlite3.connect(args.from_db)
+        fromCursor = fromSQLClient.cursor()
+        updateCount = processUnplayedStrawberyFiles(updateCursor, fromCursor)
+        appLogger.info(f"Updated {updateCount} tracks")
+        if updateCount > 0:
+            # Save (commit) the changes
+            updateSQLClient.commit()
+        fromSQLClient.close()
     updateSQLClient.close()
-
-    fromSQLClient.close()

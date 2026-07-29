@@ -12,12 +12,29 @@ from datetime import datetime, timezone
 from urllib.parse import quote, unquote, urlparse, urlunparse
 import unicodedata
 
-def dumpAllPlayed(cursor):
-    findPlayed = "SELECT title,artist,url,playcount,lastplayed,skipcount FROM songs WHERE playcount <> 0"
+def dumpTracks(cursor, played: bool = True):
+    if played:
+        findPlayed = "SELECT title,artist,url,playcount,lastplayed,skipcount FROM songs WHERE playcount <> 0"
+    else:
+        findPlayed = "SELECT title,artist,url,playcount,lastplayed,skipcount FROM songs WHERE playcount = 0"
     appLogger.debug(findPlayed)
     cursor.execute(findPlayed)
     for row in cursor.fetchall():
         print(row[0], row[1], row[2], row[3], datetime.fromtimestamp(row[4]), row[5])
+
+def getCount(cursor, countStatement):
+    """
+    Return the number of whatever is to be counted.
+    """
+    appLogger.debug(countStatement)
+    cursor.execute(countStatement)
+    result = cursor.fetchone()
+    return result[0]
+
+def printTrackStats(cursor):
+    print("Played Tracks:", getCount(cursor, "SELECT COUNT(1) FROM songs WHERE playcount <> 0"))
+    print("Unplayed Tracks:", getCount(cursor, "SELECT COUNT(1) FROM songs WHERE playcount = 0"))
+    print("Total Tracks:", getCount(cursor, "SELECT COUNT(1) FROM songs"))
 
 def convertURL(iTunesURL):
     """
@@ -36,7 +53,7 @@ def convertURL(iTunesURL):
     # While Strawberry encodes the URL, it leaves a lot of characters unquoted.
     encodedURL = urlunparse((parsedURL.scheme,
                              parsedURL.netloc,
-                             quote(normalizedUnicodePath, safe = "/&'(),[];!+=@"),
+                             quote(normalizedUnicodePath, safe = "/&'(),;!+=@"),
                              parsedURL.params,
                              parsedURL.query,
                              parsedURL.fragment))
@@ -55,19 +72,21 @@ def updatePlayDetails(strawberryDatabaseCursor, cleanedURL, newPlayCount, newLas
         appLogger.warning(f"Unable to update {cleanedURL}")
         return False
     else:
-        appLogger.info(f"Updated Track: {cleanedURL} to {newPlayCount}, {newLastPlayed}, {newSkipCount}")
+        appLogger.info(f"Updated Track: {cleanedURL} to {newPlayCount}, {datetime.fromtimestamp(newLastPlayed)}, {newSkipCount}")
         return True
     
-def processUnplayedStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor):
+def processStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor, onlyUnplayed: bool = True, updateTracks: bool = True):
     """
     Only update files in the strawberry database which have play counts of zero.
     Returns the number of updates performed.
     """
-    appLogger.info("Searching for unplayed tracks in database in the from database")
-    allUnplayedSongs = "SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs WHERE playcount = 0"
-    appLogger.debug(allUnplayedSongs)
+    appLogger.info("Searching for {} tracks in the database to update".format("unplayed " if onlyUnplayed else ""))
+    songsToSearch = "SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs"
+    if onlyUnplayed:
+        songsToSearch += "WHERE playcount = 0"
+    appLogger.debug(songsToSearch)
     updateCount = 0
-    updateDatabaseCursor.execute(allUnplayedSongs)
+    updateDatabaseCursor.execute(songsToSearch)
     for row in updateDatabaseCursor.fetchall():
         cleanedURL = convertURL(row[0])
         retrieveSong = f"SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs WHERE url='{cleanedURL}'"
@@ -75,16 +94,17 @@ def processUnplayedStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor):
         fromDatabaseCursor.execute(retrieveSong)
         found = False
         for fromRow in fromDatabaseCursor.fetchall():
-            appLogger.info(f"Matched URL {fromRow[0]}, play count {fromRow[3]} last played {fromRow[4]} skip count {fromRow[5]}")
+            appLogger.info(f"Matched URL: {fromRow[0]}, artist: {fromRow[1]}, title: {fromRow[2]}, play count: {fromRow[3]} last played: {datetime.fromtimestamp(fromRow[4])} skip count: {fromRow[5]}")
             found = True
-            if fromRow[3] > 0:
-                if updatePlayDetails(updateDatabaseCursor, cleanedURL, fromRow[3], fromRow[4], fromRow[5]):
-                    updateCount += 1
-                break
-            else:
-                appLogger.warning(f"Unplayed in the from database, not altering play count: {row[0]}")
+            if updateTracks:
+                if fromRow[3] > 0:
+                    if updatePlayDetails(updateDatabaseCursor, cleanedURL, fromRow[3], fromRow[4], fromRow[5]):
+                        updateCount += 1
+                    break
+                else:
+                    appLogger.warning(f"Unplayed in the from database, not altering play count: {row[0]}")
         if not found:
-            appLogger.debug(f"Unable to find {row[0]}")
+            appLogger.debug(f"Unable to find URL: {cleanedURL}")
     return updateCount
 
 
@@ -94,6 +114,9 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action = 'count', help = 'Verbose output. Specify twice for debugging.', default = 0)
     parser.add_argument('-f', '--from-db', action = 'store', help = 'Path to the Strawberry database to update from.', default = None)
     parser.add_argument('-d', '--dump-existing', action = 'store_true', help = 'Display the existing tracks if they already have play counts')
+    parser.add_argument('-u', '--dump-unplayed', action = 'store_true', help = "Display the existing tracks if they have not been played")
+    parser.add_argument('-t', '--track-stats', action = 'store_true', help = 'Display statistics about the number tracks with and without play counts')
+    parser.add_argument('-m', '--match-tracks', action = 'store_true', help = 'Display the tracks which do not exist in the update database')
     
     args = parser.parse_args()
 
@@ -109,14 +132,23 @@ if __name__ == '__main__':
     updateSQLClient = sqlite3.connect(args.update_db)
     updateCursor = updateSQLClient.cursor()
 
+    if args.track_stats:
+        printTrackStats(updateCursor)
+
     if args.dump_existing:
-        dumpAllPlayed(updateCursor)
-    
+        dumpTracks(updateCursor, played=True)
+
+    if args.dump_unplayed:
+        dumpTracks(updateCursor, played=False)
+
     if args.from_db is not None:
         fromSQLClient = sqlite3.connect(args.from_db)
         fromCursor = fromSQLClient.cursor()
-        updateCount = processUnplayedStrawberyFiles(updateCursor, fromCursor)
-        appLogger.info(f"Updated {updateCount} tracks")
+        if not args.match_tracks:
+            updateCount = processStrawberyFiles(updateCursor, fromCursor, onlyUnplayed = True, updateTracks = True)
+            appLogger.info(f"Updated {updateCount} tracks")
+        else:
+            updateCount = processStrawberyFiles(updateCursor, fromCursor, onlyUnplayed = False, updateTracks = False)
         if updateCount > 0:
             # Save (commit) the changes
             updateSQLClient.commit()

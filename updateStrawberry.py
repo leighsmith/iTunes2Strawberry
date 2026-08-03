@@ -11,6 +11,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import quote, unquote, urlparse, urlunparse
 import unicodedata
+import os
 
 def dumpTracks(cursor, played: bool = True):
     if played:
@@ -22,7 +23,7 @@ def dumpTracks(cursor, played: bool = True):
     for row in cursor.fetchall():
         print(row[0], row[1], row[2], row[3], datetime.fromtimestamp(row[4]), row[5])
 
-def getCount(cursor, countStatement):
+def getCount(cursor, countStatement: str):
     """
     Return the number of whatever is to be counted.
     """
@@ -36,14 +37,14 @@ def printTrackStats(cursor):
     print("Unplayed Tracks:", getCount(cursor, "SELECT COUNT(1) FROM songs WHERE playcount = 0"))
     print("Total Tracks:", getCount(cursor, "SELECT COUNT(1) FROM songs"))
 
-def convertURL(iTunesURL):
+def convertURL(iTunesURL: str):
     """
     Converts the iTunes URLs to a URL that can be found in the Strawberry database.
     """
     # Convert XML encoding of ampersands in the URL.
     iTunesURL = iTunesURL.replace('&#38;', '&')
     # iTunes encodes URLs, using UTF-8 encoding, but using a character and the combining diacritic,
-    # instead of the noramlized, singular combined character including the diacritic, that Strawberry uses.
+    # instead of the normalized, singular combined character including the diacritic, that Strawberry uses.
     # For example, iTunes: "n%CC%83", Strawberry: "%C3%B1"
     # So we need to decode the URL encoding, normalize the characters to the Normal Form
     # Composed form, then decode the unicode encoding into UTF-8, then reencode the URL.
@@ -60,6 +61,12 @@ def convertURL(iTunesURL):
     # Finally escape quote characters in URL for SQL use.
     return encodedURL.replace("'", "''")
 
+def checkFileExists(fileURL: str):
+    parsedURL = urlparse(fileURL)
+    decodedPath = unquote(parsedURL.path)
+    decodedPath = decodedPath.replace("''", "'")
+    return os.path.exists(decodedPath), decodedPath
+
 def updatePlayDetails(strawberryDatabaseCursor, cleanedURL, newPlayCount, newLastPlayed, newSkipCount):
     # Set the track with the unassigned play count, last played date, and skip counts to the iTunes values:
     updateCounts = f"UPDATE songs SET playcount = {newPlayCount}, skipcount = {newSkipCount}, lastplayed = {newLastPlayed} WHERE url = '{cleanedURL}' AND playcount = 0"
@@ -74,8 +81,39 @@ def updatePlayDetails(strawberryDatabaseCursor, cleanedURL, newPlayCount, newLas
     else:
         appLogger.info(f"Updated Track: {cleanedURL} to {newPlayCount}, {datetime.fromtimestamp(newLastPlayed)}, {newSkipCount}")
         return True
+
+def matchStrawberryFiles(fromDatabaseCursor, updateDatabaseCursor):
+    """
+    Read-only check of tracks matching, identify those tracks in the from database, unable to be found in the update database.
+    """
+    appLogger.info("Matching tracks across databases")
+    songsToSearch = "SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs"
+    appLogger.debug(songsToSearch)
+    matchCount = 0
+    missingCount = 0
+    fromDatabaseCursor.execute(songsToSearch)
+    for track_index, row in enumerate(fromDatabaseCursor.fetchall()):
+        cleanedURL = convertURL(row[0])
+        retrieveSong = f"SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs WHERE url='{cleanedURL}'"
+        appLogger.debug(retrieveSong)
+        updateDatabaseCursor.execute(retrieveSong)
+        found = False
+        for matchRow in updateDatabaseCursor.fetchall():
+            appLogger.info(f"{track_index} Matched URL: {matchRow[0]}, artist: {matchRow[1]}, title: {matchRow[2]}, play count: {matchRow[3]} last played: {datetime.fromtimestamp(matchRow[4])} skip count: {matchRow[5]}")
+            found = True
+        if not found:
+            # Check if the file exists on the disk
+            fileExists, path = checkFileExists(cleanedURL)
+            playcount = int(row[3])
+            if playcount > 0:
+                if not fileExists:
+                    appLogger.warning(f"{missingCount} {cleanedURL} play count {playcount} not found in database and file does not exist on disk at {path}")
+                else:
+                    appLogger.warning(f"{missingCount} Unable to find URL: {cleanedURL} in database, does exist on disk at {path}, play count {playcount}, last played: {datetime.fromtimestamp(row[4])}")
+            missingCount += 1
+    return matchCount
     
-def processStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor, onlyUnplayed: bool = True, updateTracks: bool = True):
+def processStrawberryFiles(updateDatabaseCursor, fromDatabaseCursor, onlyUnplayed: bool = True, updateTracks: bool = True):
     """
     Only update files in the strawberry database which have play counts of zero.
     Returns the number of updates performed.
@@ -86,15 +124,16 @@ def processStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor, onlyUnplayed
         songsToSearch += "WHERE playcount = 0"
     appLogger.debug(songsToSearch)
     updateCount = 0
+    missingCount = 0
     updateDatabaseCursor.execute(songsToSearch)
-    for row in updateDatabaseCursor.fetchall():
+    for track_index, row in enumerate(updateDatabaseCursor.fetchall()):
         cleanedURL = convertURL(row[0])
         retrieveSong = f"SELECT url, artist, title, playcount, lastplayed, skipcount FROM songs WHERE url='{cleanedURL}'"
         appLogger.debug(retrieveSong)
         fromDatabaseCursor.execute(retrieveSong)
         found = False
         for fromRow in fromDatabaseCursor.fetchall():
-            appLogger.info(f"Matched URL: {fromRow[0]}, artist: {fromRow[1]}, title: {fromRow[2]}, play count: {fromRow[3]} last played: {datetime.fromtimestamp(fromRow[4])} skip count: {fromRow[5]}")
+            appLogger.info(f"{track_index} Matched URL: {fromRow[0]}, artist: {fromRow[1]}, title: {fromRow[2]}, play count: {fromRow[3]} last played: {datetime.fromtimestamp(fromRow[4])} skip count: {fromRow[5]}")
             found = True
             if updateTracks:
                 if fromRow[3] > 0:
@@ -104,7 +143,13 @@ def processStrawberyFiles(updateDatabaseCursor, fromDatabaseCursor, onlyUnplayed
                 else:
                     appLogger.warning(f"Unplayed in the from database, not altering play count: {row[0]}")
         if not found:
-            appLogger.debug(f"Unable to find URL: {cleanedURL}")
+            # Check if the file exists on the disk
+            fileExists, path = checkFileExists(cleanedURL)
+            if not fileExists:
+                appLogger.warning(f"{missingCount} {cleanedURL} not found in database and file does not exist on disk at {path}")
+            # else:
+            #     appLogger.warning(f"{missingCount} Unable to find URL: {cleanedURL} in database")
+            missingCount += 1
     return updateCount
 
 
@@ -145,12 +190,14 @@ if __name__ == '__main__':
         fromSQLClient = sqlite3.connect(args.from_db)
         fromCursor = fromSQLClient.cursor()
         if not args.match_tracks:
-            updateCount = processStrawberyFiles(updateCursor, fromCursor, onlyUnplayed = True, updateTracks = True)
+            updateCount = processStrawberryFiles(updateCursor, fromCursor, onlyUnplayed = True, updateTracks = True)
             appLogger.info(f"Updated {updateCount} tracks")
+            if updateCount > 0:
+                # Save (commit) the changes
+                updateSQLClient.commit()
         else:
-            updateCount = processStrawberyFiles(updateCursor, fromCursor, onlyUnplayed = False, updateTracks = False)
-        if updateCount > 0:
-            # Save (commit) the changes
-            updateSQLClient.commit()
+            # We match from the db, to the update db, so we  swap which db is queried first.
+            matchCount = matchStrawberryFiles(fromCursor, updateCursor)
+            appLogger.info(f"Matched {matchCount} tracks")
         fromSQLClient.close()
     updateSQLClient.close()
